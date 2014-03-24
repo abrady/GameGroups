@@ -1,0 +1,28 @@
+<html>
+  <head>
+    <title>Game Groups Example 2</title>
+    <div id="fb-root"></div>
+    <script>
+       var app_access_token = '<%= app_access_token %>';
+    </script>
+    <script>
+      window.fbAsyncInit = function() {
+        FB.init({
+          appId      : '1485758598314542',
+          status     : true
+        });
+      };
+
+      (function(d, s, id){
+         var js, fjs = d.getElementsByTagName(s)[0];
+         if (d.getElementById(id)) {return;}
+         js = d.createElement(s); js.id = id;
+         js.src = "//connect.facebook.net/en_US/all.js";
+         fjs.parentNode.insertBefore(js, fjs);
+       }(document, 'script', 'facebook-jssdk'));
+    </script>
+  </head>
+  <body>
+  Test Test
+  </body>
+</html>

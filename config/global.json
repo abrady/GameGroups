@@ -1,0 +1,14 @@
+{
+    "applications": {
+        "GameGroups": {
+            "applicationId": "M5iOyYE8ckQ7bBfmmhigy0bFtx2tT5XigjC82wfX", 
+            "masterKey": "TpG6avzsW0TVJcgAxJricd0m7P9NH7vv16jCXx53"
+        }, 
+        "_default": {
+            "link": "GameGroups"
+        }
+    }, 
+    "global": {
+        "parseVersion": "1.2.18"
+    }
+}
