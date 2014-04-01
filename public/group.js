@@ -1,4 +1,20 @@
+/** @jsx React.DOM */
 "use strict";
+
+var GroupsTable = React.createClass({
+    render: function() {
+      var rows = [];
+      this.props.products.forEach(function(product) {
+        if (product.category !== lastCategory) {
+          rows.push(<ProductCategoryRow category={product.category} key={product.category} />);
+        }
+        rows.push(<ProductRow product={product} key={product.name} />);
+        lastCategory = product.category;
+      });
+    }
+});
+ 
+// React.renderComponent(<Hello name="World" />, document.body);
 
 var ge = function(e) {
   return typeof e == 'string' ? document.getElementById(e) : e;
@@ -11,38 +27,51 @@ var $ = function(args) {
   return e;
 }
 
-// generic command sender, response is logged
-// res is of form([true,false],response text)
-function server_send_cmd(cmd,args, res) {
-  xmlhttp = new XMLHttpRequest();
-  xmlhttp.onreadystatechange=function()
-  {
-    if (xmlhttp.readyState==4)
-    {
-      console.log(xmlhttp.status +', '+ xmlhttp.responseText);
-      if (res) {
-        res(xmlhttp.status==200, xmlhttp.responseText)
-      }
-    }
-  }
+var createElement = function(elt) { return document.createElement(elt); }
 
-  xmlhttp.open("GET",cmd+'?res='+escape(args),true);
-  xmlhttp.send();
+var makeButton = function(label, onclick) {
+  var button = createElement('button');
+  button.className = 'groupDelete';
+  button.innerHTML = label;
+  button.onclick = onclick;
+  return button;
 }
 
-function permissions_validate(perms_string, response) {
-  var missing = '';
-  var perms = perms_string.split(',');
-  for(var i = 0; i < perms.length; ++i) {
-    var k = perms[i];
-    if (-1 == response.perms.indexOf(k))
-      missing += (missing?', ':'')+k;
+function deleteElement(elt) {
+ elt.parentElement.removeChild(elt);
+}
+
+function getGroupInfo(group_name, group_id) {
+  fbGraphGet(group_id, function(group_info) {
+    console.log('groupInfo '+JSON.stringify(group_info));
+    var info = $('group_info');
+    info.innerHTML = '<h3>Group '+group_name+'</h3>';    
+  });
+}
+
+function makeGroupsList(list_root) {
+  return function(group) {
+    var li = createElement('li');
+    var div = createElement('div');
+    div.className='groupName';
+    div.innerHTML = group.name+'  '+group.id;
+    li.appendChild(div);
+    li.id = group.id;
+    li.onclick = function() {
+      getGroupInfo(group.name, group.id);
+    };
+    var btn_del = makeButton(
+      'X', 
+      function() {
+        deleteElement($(li.id));
+        sendServerReq('delete', '/appGroups', {group_ids: [group.id]}, function() {
+          console.log('deleted group'+group.id);
+        })
+      }
+    );
+    li.appendChild(btn_del);
+    list_root.appendChild(li);
   }
-  if(missing) {
-    console.log('missing permissions: ' + missing);
-    return false;
-  }
-  return true;
 }
 
 // log the user in/ask permissions
@@ -62,18 +91,24 @@ function onFBInit() {
 function onLogin() {
   // console.log('access_token: ' + FB.getAccessToken());
   //  FB.api('/me', user_recv);
-  getUserGroups(printUserGroups);
+  getPlayerGroups();
+  getAppGroups();
 }
 
-function printUserGroups(groups) {
-  var node = $('player_groups');
-  console.log('groups res'+JSON.stringify(groups));
-}
-
-function getUserGroups(res_cb) {
+function getPlayerGroups(res_cb) {
   fbGraphGet(
-    '/me/groups?parent='+fbconfig.app_id+'&access_token='+FB.getAccessToken(), 
-    res_cb
+    'me/groups?access_token='+FB.getAccessToken()+'&parent='+fbconfig.app_id,
+    function(groups_res) {
+      var node = $('player_groups');
+      var ul = createElement('ul');
+
+      node.innerHTML = '<h3>Player Groups</h3>';
+      node.appendChild(ul);
+      groups_res.data.forEach(makeGroupsList(ul));
+      if (!groups_res.data.length) {
+        ul.innerHTML = '<li><i>No Player Groups</i></li>';
+      }
+    }
   );
 }
 
@@ -82,7 +117,6 @@ function fbGraphGet(path, res_cb, err_cb) {
     path = '/' + path;
   }
   var xhr = new XMLHttpRequest();
-  console.log("get user groups");
   xhr.open(
     'get', 
     'https://graph.facebook.com'+path,
@@ -111,25 +145,66 @@ function fbGraphGet(path, res_cb, err_cb) {
 function onGroupCreateRes(res_str) {
   // {"result":"{\"id\":\"1488155834741485\"}"}
   res_json = JSON.parse(res_str);
-  console.log("result: "+res_json.result);
+  console.log("created group: "+res_json.result);
+  
+}
+
+/**
+ * Submit a json structured request to the server for handling
+ * @param method: post, get, etc.
+ * @param path: the path to hit on the server
+ * @param json_payload: what to send, must be JSON.stringify-able
+ */
+function sendServerReq(method, path, json_payload, res) {
+  console.log("submitting, method: "+method+" path: "+path);
+  var xhr = new XMLHttpRequest();
+  xhr.onreadystatechange=function()
+  {
+    if (xhr.readyState==4)
+    {
+      if(xhr.status==200) {
+        console.log('sendServerReq('+method+'):'+xhr.responseText);
+        if (res) {
+          res(JSON.parse(xhr.responseText));
+        }
+      } else {
+        console.error('sendServerReq('+method+') failed');
+      }
+    }
+  }
+  xhr.open(method, path, true);
+  xhr.setRequestHeader("Content-type", "application/json");
+  xhr.send(JSON.stringify(json_payload));
 }
 
 function submitForm(form_elt, res)
 {
-  var xhr = new XMLHttpRequest();
-  console.log("submitting, method: "+form_elt.method+" action: "+form_elt.action);
-  xhr.onload = res;
-  xhr.open(form_elt.method, form_elt.action, true);
-  xhr.setRequestHeader("Content-type", "application/json");
   //    xhr.send(new FormData (form_elt)); <= screw this. sends as multipart/form-data
   //http://www.w3.org/TR/2010/WD-XMLHttpRequest2-20100907/#dom-xmlhttprequest-send
-  form_fields = {};
-  for(i=0; i<form_elt.elements.length; i++)
+  var form_fields = {};
+  for(var i=0; i<form_elt.elements.length; i++)
   {
     if (form_elt.elements[i].name) {
       form_fields[form_elt.elements[i].name] = form_elt.elements[i].value;
     }
   }
-  xhr.send(JSON.stringify(form_fields));
+  sendServerReq(form_elt.method, form_elt.action, form_fields, res);
   return false; // signal that the submit was handled
+}
+
+function getAppGroups() {
+  console.log('getting app groups');
+  sendServerReq('get', '/appGroups', {}, function(app_groups) {
+    var root = $('app_groups');
+    var header = createElement('h3');
+    header.innerHTML = 'Groups Owned By App';
+
+    var ul = createElement('ul');
+    app_groups.forEach(makeGroupsList(ul));
+    
+    root.innerHTML = '';
+    root.appendChild(header);
+    root.appendChild(ul);
+    
+  });
 }

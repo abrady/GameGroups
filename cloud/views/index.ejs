@@ -2,13 +2,15 @@
   <head>
     <title>Game Groups Example</title>
     <div id="fb-root"></div>
+    <link href="/group.css" type="text/css" rel="stylesheet" />
+    <script src="react-with-addons-0.10.0.min.js"></script>
+    <script src="JSXTransformer-0.10.0.js"></script>
     <script>
       fbconfig = { 
         app_id: <%= app_id %>
       }
     </script>
-    <script src="group.js"></script>
-    </script>
+    <script type="text/jsx" src="group.js"></script>
     <script>
       window.fbAsyncInit = function() {
         FB.init({
@@ -28,19 +30,14 @@
     </script>
   </head>
   <body>
-        <form name="input" id="groupcreate" method="post" action="groupcreate" onsubmit="return submitForm(this);">
-              Name: <input type="text" name="name" value="asdf"></input>
-              <input type="text" name="description" value="qwer"></input>
-              <input type="submit" value="Submit"></input>
-        </form>
-        <div id="player_groups"></div>
-        <div id="app_groups">
-          <h3>Groups owned by app</h3>
-          <ul>
-            <% for(var i=0; i<app_groups.length; i++) {%>
-               <li><%= app_groups[i].name %> : <%= app_groups[i].id %></li>
-            <% } %>
-          </ul>
-        </div>
+    <h3>Make New Group</h3>
+    <form name="input" id="groupcreate" method="post" action="groupcreate" onsubmit="return submitForm(this);">
+      Name: <input type="text" name="name" value="asdf"></input>
+      <input type="text" name="description" value="qwer"></input>
+      <input type="submit" value="Submit"></input>
+    </form>
+    <div id="group_info" class="groupInfo"></div>
+    <div id="player_groups"></div>
+    <div id="app_groups"></div>
   </body>
 </html>

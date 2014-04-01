@@ -58,6 +58,7 @@ exports.graphRequest = function (path, params, method, res_cb, err_cb) {
   var options = {
     url: 'https://graph.facebook.com'+path,
     success: function(httpResponse) {
+      //console.log('graphRequest('+path+') success: '+httpResponse.text);
       res_cb(JSON.parse(httpResponse.text));
     },
     error: err_cb || function(e) {
@@ -96,6 +97,14 @@ exports.graphGet = function (path, params, res_cb, err_cb) {
 */
 exports.graphPost = function (path, params, res_cb, err_cb) {
   exports.graphRequest(path, params, 'post', res_cb, err_cb);
+}
+
+/**
+ * Helper for making a DELETE call to graph.facebook.com
+ * @see graphRequest
+ */
+exports.graphDelete = function (path, res_cb, err_cb) {
+  exports.graphRequest(path, {}, 'delete', res_cb, err_cb);
 }
 
 exports.GroupPrivacyEnum = {
@@ -175,21 +184,18 @@ exports.groups = {
     var res_groups = null;
     var getter_cb = function(paged_data) {
       if(res_groups){
-        console.log('adding grups to list');
+        //console.log('adding groups to list');
         paged_data.data.forEach(function(v) {
           res_groups.push(v);
         });
       } else{
-        console.log('getting paged_data.data');
         res_groups = paged_data.data;
       }
-      console.log('paged_data:'+JSON.stringify(paged_data.data));
-
-      console.log('res_groups(1):'+JSON.stringify(res_groups));
+      //console.log('res_groups(1):'+JSON.stringify(res_groups));
 
       // if we have more data, grab that
       if (paged_data.next) {
-        console.log('getAll:next');
+        // console.log('getAll:next page');
         Parse.Cloud.httpRequest({
           url: paged_data.next,
           success: function(httpResponse) {
@@ -200,10 +206,23 @@ exports.groups = {
           }
         });
       } else {
-        console.log('res_groups(2):'+JSON.stringify(res_groups));
+        //console.log('res_groups(2):'+JSON.stringify(res_groups));
         res_cb(res_groups);
       }
     }
     exports.groups.getPaged(getter_cb, err_cb);    
+  },
+
+  /**
+   * delete the passed groups
+   * @param groups: an array if ids to delete
+   */
+  delete: function(group_id, res_cb, err_cb) {
+    // console.log('groups.delete');
+    exports.graphDelete(
+      fbconfig.app_id+'/groups/'+group_id,
+      res_cb,
+      err_cb
+    );
   }
 }; // exports.groups

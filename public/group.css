@@ -1,0 +1,16 @@
+.groupName {
+    display: inline-block;
+}
+
+.groupName:hover{
+    background-color:lightblue;
+}
+
+.groupDelete {
+    display: inline-block;
+    height: 10px;
+}
+
+.groupInfo {
+    float:right;
+}

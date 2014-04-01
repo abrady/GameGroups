@@ -48,11 +48,7 @@ app.get('/hello', function(req, res) {
 });
 
 index = function(req, res) {
-  console.log('index');
-  fb.groups.getAll(function(app_groups) {
-    console.log('got groups'+JSON.stringify(app_groups));
-    res.render('index', { app_id: fbconfig.app_id, app_groups: app_groups })
-  });
+  res.render('index', { app_id: fbconfig.app_id })
 }
 app.post('/', index);
 app.get('/', index);
@@ -71,6 +67,36 @@ app.post('/groupcreate', function(req, res) {
             res.end(JSON.stringify({"error":err}));
         }
     );             
+});
+
+app.get('/appGroups', function(req, res) {
+  fb.groups.getAll(function(app_groups) {
+    console.log('got groups'+JSON.stringify(app_groups));
+    res.end(JSON.stringify(app_groups));
+  });  
+});
+
+app.delete('/appGroups', function(req, res) {
+  console.log('delete group id:'+JSON.stringify(req.body));
+  var deleted = [];
+  var deleted_res_count = 0;
+  req.body.group_ids.forEach(
+    function(group_id) {
+      fb.groups.delete(
+        group_id,
+        function(/*bool*/ delete_outcome) { 
+          console.log('deleted: '+delete_outcome);
+          deleted_res_count++;
+          if (delete_outcome) {            
+            deleted.push(group_id);
+          }
+          if (deleted.length == deleted_res_count) {
+            console.log('done deleting groups. ending');
+            res.end(JSON.stringify({group_ids:deleted}));
+          }
+        }
+      )
+    }); 
 });
 
 // Attach the Express app to Cloud Code.
