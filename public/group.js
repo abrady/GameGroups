@@ -1,6 +1,58 @@
 /** @jsx React.DOM */
 "use strict";
 
+// ============================================================
+// View
+// ============================================================
+
+// var HelloWorld = React.createClass({
+//   render: function() {
+//     return (
+//       <p>
+//         Hello, <input type="text" placeholder="Your name here" />!
+//         It is {this.props.date.toTimeString()}
+//       </p>
+//     );
+//   }
+// });
+
+// React.renderComponent(<HelloWorld date={new Date()} />);
+
+var CreateGroup = React.createClass({
+  getInitialState: function() {
+    return { name: 'group name', description: 'group description' };
+  },
+  
+  onSubmit: function(event) {
+    // action="groupcreate" method="post"
+    console.log('on submit');
+  },
+
+  onNameChange: function(e) {
+    this.setState({name: e.target.value});
+  },
+
+  render: function() {
+    return (
+      <div>
+        <h3>Make New Group</h3>
+        <form name="input" id="groupcreate" onSubmit={this.onSubmit}>
+          Name: <input type="text" name="name" onChange={this.onNameChange} value={this.state.name}></input>
+          <input type="text" name="description" value={this.state.description}></input>
+          <input type="submit" value="Submit"></input>
+        </form>
+      </div>
+    );
+  }
+});
+
+
+React.renderComponent(<CreateGroup/>, $('create_group') );
+
+// ============================================================
+// Data
+// ============================================================
+
 var GroupsTable = React.createClass({
     render: function() {
       var rows = [];
@@ -14,12 +66,10 @@ var GroupsTable = React.createClass({
     }
 });
  
-// React.renderComponent(<Hello name="World" />, document.body);
-
-var ge = function(e) {
+function ge(e) {
   return typeof e == 'string' ? document.getElementById(e) : e;
 };
-var $ = function(args) {
+function $(args) {
   var e = ge.apply(this, arguments);
   if (!e) {
     throw new Error('Tried to get element '+args+'but it is not present in the page. Use ge() instead.');

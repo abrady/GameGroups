@@ -99,5 +99,4 @@ app.delete('/appGroups', function(req, res) {
     }); 
 });
 
-// Attach the Express app to Cloud Code.
 app.listen();
