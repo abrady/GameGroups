@@ -5,18 +5,24 @@
 // View
 // ============================================================
 
-// var HelloWorld = React.createClass({
-//   render: function() {
-//     return (
-//       <p>
-//         Hello, <input type="text" placeholder="Your name here" />!
-//         It is {this.props.date.toTimeString()}
-//       </p>
-//     );
-//   }
-// });
-
-// React.renderComponent(<HelloWorld date={new Date()} />);
+var MessageGroup = React.createClass({
+  sendMessage: function() {
+    FB.ui(
+      {
+        method: 'send',
+        link: 'https://developers.facebook.com/docs/'
+      }, 
+      function(response){ 
+        console.log('MessageGroup response:'+JSON.stringify(response));
+      }
+    );
+  },
+  render: function() {
+    return (
+      <button onClick={this.sendMessage}>Send Message</button>
+    );
+  }
+});  
 
 var CreateGroup = React.createClass({
   getInitialState: function() {
@@ -26,19 +32,25 @@ var CreateGroup = React.createClass({
   onSubmit: function(event) {
     // action="groupcreate" method="post"
     console.log('on submit');
+    submitForm(ge('groupcreate'), 'post', function(res) { console.log("res: "+JSON.stringify(res)); });
+    return true;
   },
 
   onNameChange: function(e) {
     this.setState({name: e.target.value});
   },
 
+  onDescriptionChange: function(e) {
+    this.setState({description: e.target.value});
+  },
+
   render: function() {
     return (
       <div>
         <h3>Make New Group</h3>
-        <form name="input" id="groupcreate" onSubmit={this.onSubmit}>
+        <form name="input" id="groupcreate" onSubmit={this.onSubmit} method="/groupcreate">
           Name: <input type="text" name="name" onChange={this.onNameChange} value={this.state.name}></input>
-          <input type="text" name="description" value={this.state.description}></input>
+          <input type="text" name="description" onChange={this.onDescriptionChange} value={this.state.description}></input>
           <input type="submit" value="Submit"></input>
         </form>
       </div>
@@ -46,25 +58,94 @@ var CreateGroup = React.createClass({
   }
 });
 
+var GroupListItem = React.createClass({
+  deleteGroup: function() {
+    deleteElement($(li.id));
+    sendServerReq('delete', '/appGroups', {group_ids: [group.id]}, function() {
+      console.log('deleted group'+group.id);
+    }); 
+  },
 
-React.renderComponent(<CreateGroup/>, $('create_group') );
+  render: function() {
+    return (
+      <li id={'group_'+this.props.id}>
+        {this.props.name+' '+this.props.id}
+        <button onClick={this.deleteGroup}>Delete</button>
+      </li>
+    );
+  }
+});
+
+var GroupList = React.createClass({
+  render: function() {
+    if (!this.props.groups) {
+      return(<div/>);
+    }
+    var list_items = this.props.groups.map(
+      function(group_data) {
+        return <GroupListItem id={group_data.id} name={group_data.name} />;
+      }
+    );
+    return (
+      <ul>
+        {list_items}
+      </ul>
+    );
+  }
+});
+
+var GroupArea = React.createClass({
+  getInitialState: function() {
+    return { 
+      playerGroups: [], 
+      appGroups: [] 
+    };
+  },
+
+  getPlayerGroups: function(res_cb) {
+    var self = this;
+    fbGraphGet(
+      'me/groups?access_token='+FB.getAccessToken()+'&parent='+fbconfig.app_id,
+      function(groups_res) {
+        self.setState({playerGroups: groups_res.data});
+      }
+    );
+  },
+
+  getAppGroups: function() {
+    console.log('getting app groups');
+    var self = this;
+    sendServerReq('get', '/appGroups', {}, function(app_groups) {
+      self.setState({appGroups: app_groups});
+    });
+  },
+
+  getAllGroups: function() {
+    this.getPlayerGroups();
+    this.getAppGroups();
+  },
+
+  componentWillMount: function() {
+    this.getAllGroups()
+  },
+  
+  render: function() {
+    return (
+      <div>
+        <CreateGroup/>
+        <MessageGroup/>
+        <h4>Player Groups</h4>
+        <GroupList groups={this.state.playerGroups} />
+        <h4>App Groups</h4>
+        <GroupList groups={this.state.appGroups} />
+      </div>
+    );
+  }
+});
 
 // ============================================================
 // Data
 // ============================================================
-
-var GroupsTable = React.createClass({
-    render: function() {
-      var rows = [];
-      this.props.products.forEach(function(product) {
-        if (product.category !== lastCategory) {
-          rows.push(<ProductCategoryRow category={product.category} key={product.category} />);
-        }
-        rows.push(<ProductRow product={product} key={product.name} />);
-        lastCategory = product.category;
-      });
-    }
-});
  
 function ge(e) {
   return typeof e == 'string' ? document.getElementById(e) : e;
@@ -75,91 +156,6 @@ function $(args) {
     throw new Error('Tried to get element '+args+'but it is not present in the page. Use ge() instead.');
   }
   return e;
-}
-
-var createElement = function(elt) { return document.createElement(elt); }
-
-var makeButton = function(label, onclick) {
-  var button = createElement('button');
-  button.className = 'groupDelete';
-  button.innerHTML = label;
-  button.onclick = onclick;
-  return button;
-}
-
-function deleteElement(elt) {
- elt.parentElement.removeChild(elt);
-}
-
-function getGroupInfo(group_name, group_id) {
-  fbGraphGet(group_id, function(group_info) {
-    console.log('groupInfo '+JSON.stringify(group_info));
-    var info = $('group_info');
-    info.innerHTML = '<h3>Group '+group_name+'</h3>';    
-  });
-}
-
-function makeGroupsList(list_root) {
-  return function(group) {
-    var li = createElement('li');
-    var div = createElement('div');
-    div.className='groupName';
-    div.innerHTML = group.name+'  '+group.id;
-    li.appendChild(div);
-    li.id = group.id;
-    li.onclick = function() {
-      getGroupInfo(group.name, group.id);
-    };
-    var btn_del = makeButton(
-      'X', 
-      function() {
-        deleteElement($(li.id));
-        sendServerReq('delete', '/appGroups', {group_ids: [group.id]}, function() {
-          console.log('deleted group'+group.id);
-        })
-      }
-    );
-    li.appendChild(btn_del);
-    list_root.appendChild(li);
-  }
-}
-
-// log the user in/ask permissions
-// note: on_logged_in() takes further actions
-function onFBInit() {
-  var permissions = ''; // 'publish_stream,publish_actions,user_games_activity';
-  FB.login(
-      function(response) {
-          if(response.authResponse) {
-              // logged in
-              onLogin();
-            }},
-      {scope: permissions}
-    );
-}
-
-function onLogin() {
-  // console.log('access_token: ' + FB.getAccessToken());
-  //  FB.api('/me', user_recv);
-  getPlayerGroups();
-  getAppGroups();
-}
-
-function getPlayerGroups(res_cb) {
-  fbGraphGet(
-    'me/groups?access_token='+FB.getAccessToken()+'&parent='+fbconfig.app_id,
-    function(groups_res) {
-      var node = $('player_groups');
-      var ul = createElement('ul');
-
-      node.innerHTML = '<h3>Player Groups</h3>';
-      node.appendChild(ul);
-      groups_res.data.forEach(makeGroupsList(ul));
-      if (!groups_res.data.length) {
-        ul.innerHTML = '<li><i>No Player Groups</i></li>';
-      }
-    }
-  );
 }
 
 function fbGraphGet(path, res_cb, err_cb) {
@@ -194,9 +190,7 @@ function fbGraphGet(path, res_cb, err_cb) {
 
 function onGroupCreateRes(res_str) {
   // {"result":"{\"id\":\"1488155834741485\"}"}
-  res_json = JSON.parse(res_str);
-  console.log("created group: "+res_json.result);
-  
+  group_area.getAllGroups();
 }
 
 /**
@@ -227,8 +221,9 @@ function sendServerReq(method, path, json_payload, res) {
   xhr.send(JSON.stringify(json_payload));
 }
 
-function submitForm(form_elt, res)
+function submitForm(form_elt, action, res)
 {
+  form_elt.method || console.error("must set form.method");
   //    xhr.send(new FormData (form_elt)); <= screw this. sends as multipart/form-data
   //http://www.w3.org/TR/2010/WD-XMLHttpRequest2-20100907/#dom-xmlhttprequest-send
   var form_fields = {};
@@ -238,23 +233,13 @@ function submitForm(form_elt, res)
       form_fields[form_elt.elements[i].name] = form_elt.elements[i].value;
     }
   }
-  sendServerReq(form_elt.method, form_elt.action, form_fields, res);
+  sendServerReq(form_elt.method, action, form_fields, res);
   return false; // signal that the submit was handled
 }
 
-function getAppGroups() {
-  console.log('getting app groups');
-  sendServerReq('get', '/appGroups', {}, function(app_groups) {
-    var root = $('app_groups');
-    var header = createElement('h3');
-    header.innerHTML = 'Groups Owned By App';
-
-    var ul = createElement('ul');
-    app_groups.forEach(makeGroupsList(ul));
-    
-    root.innerHTML = '';
-    root.appendChild(header);
-    root.appendChild(ul);
-    
-  });
+// log the user in/ask permissions
+// note: on_logged_in() takes further actions
+var group_area = <GroupArea/>;
+function onGroupsFBInit() {
+  React.renderComponent(group_area, $('group_area') );
 }

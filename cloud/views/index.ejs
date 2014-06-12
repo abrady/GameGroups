@@ -5,35 +5,38 @@
     <link href="/group.css" type="text/css" rel="stylesheet" />
     <script src="JSXTransformer-0.10.0.js"></script>
     <script src="react-0.10.0.js"></script>
-    <script src="less.js" type="text/javascript"></script>
+    <script type="text/jsx" src="syncrequests.js"></script>
     <script>
       fbconfig = { 
         app_id: <%= app_id %>
       }
     </script>
     <script type="text/jsx" src="group.js"></script>
+    <!-- <script type="text/javascript" id="facebook-jssdk" src="https://connect.jdudak.sb.facebook.com/en_US/all.js"></script> -->
+    <script type="text/javascript" id="facebook-jssdk" src="//connect.facebook.net/en_US/sdk.js"></script>
     <script>
-      window.fbAsyncInit = function() {
-        FB.init({
-          appId      : '1485758598314542',
-          status     : true
-        });
-        onFBInit();
-      };
+      FB.init({
+        appId      : '1485758598314542',
+        status     : true,
+        version    : 'v2.0'
+      });
 
-      (function(d, s, id){
-         var js, fjs = d.getElementsByTagName(s)[0];
-         if (d.getElementById(id)) {return;}
-         js = d.createElement(s); js.id = id;
-         js.src = "//connect.facebook.net/en_US/all.js";
-         fjs.parentNode.insertBefore(js, fjs);
-       }(document, 'script', 'facebook-jssdk'));
+      FB.login(function(response) {
+        if (response.authResponse) {
+          console.log('logged in ');
+          onGroupsFBInit();
+          // onSyncReqFBInit();
+        } else {
+          console.log('User cancelled login or did not fully authorize.');
+        }
+      });
     </script>
   </head>
   <body>
-    <div id="create_group"></div>
+    <div id="group_area"></div>
     <div id="group_info" class="groupInfo"></div>
     <div id="player_groups"></div>
     <div id="app_groups"></div>
+    <div id="syncinvites"></div>
   </body>
 </html>
