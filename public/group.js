@@ -5,15 +5,20 @@
 // View
 // ============================================================
 
-var MessageGroup = React.createClass({
+var SendMessageButton = React.createClass({
+  getDefaultProps: function() {
+    return { 'key': 'SendMessageButton'+this.props.group.id };
+  },
+
   sendMessage: function() {
     FB.ui(
       {
         method: 'send',
+        to: this.props.group.id,
         link: 'https://developers.facebook.com/docs/'
       }, 
       function(response){ 
-        console.log('MessageGroup response:'+JSON.stringify(response));
+        console.log('SendMessageButton response:'+JSON.stringify(response));
       }
     );
   },
@@ -58,38 +63,147 @@ var CreateGroup = React.createClass({
   }
 });
 
+var GroupFacebookLink = React.createClass({
+  render: function() {
+    return this.transferPropsTo(
+      <a 
+        href={'//facebook.com/groups/'+this.props.group.id} 
+        target="_newtab">
+        {this.props.children}
+      </a>
+    );
+  }
+});
+
+/**
+ * get info about the group, e.g. members associated with the
+ * group. 
+ * passes back to top level group_area component
+ */
+var GetGroupInfoButton = React.createClass({
+  getInfo: function() {
+    FB.api(
+      this.props.group.id+'/members',
+      'get',
+      {},
+      function(members) {
+        if (members.error) {
+          console.log("GetGroupInfoButton error:"+members.error.message);
+          return;
+        }
+        this.props.onMemberInfo({
+          id: this.props.group.id, 
+          members: members.data
+        });
+      }.bind(this)
+    );
+  },
+  
+  render: function() {
+    return (
+      <button onClick={this.getInfo}>Info</button>
+    );
+  }
+});
+
 var GroupListItem = React.createClass({
   deleteGroup: function() {
-    deleteElement($(li.id));
-    sendServerReq('delete', '/appGroups', {group_ids: [group.id]}, function() {
-      console.log('deleted group'+group.id);
+    sendServerReq('delete', '/appGroups', {group_ids: [this.props.group.id]}, function() {
+      console.log('deleted group'+this.props.group.group.id);
     }); 
   },
 
+  joinGroup: function() {
+    FB.ui({
+      method: 'game_group_join',
+      id: this.props.group.id,
+      display: 'async'
+    }, function(response) {
+      console.log(response);
+      if (response.added == true) {
+        console.log("you've joined the group.");
+      } else {
+        console.log("error: " + response.error_message);
+      }
+    });    
+  },
+
   render: function() {
+    var buttons = [];
+    buttons.push(
+      <GetGroupInfoButton 
+        group={this.props.group} 
+        onMemberInfo={this.props.onMemberInfo}
+      />
+    );
+    if (this.props.canJoin) {
+      buttons.push(
+        <button 
+          key={"joingroup_"+this.props.group.id} 
+          onClick={this.joinGroup}>
+          Join
+        </button>);
+    }
+    if (this.props.canMessage) {
+      buttons.push(<SendMessageButton group={this.props.group} />);
+    }
     return (
-      <li id={'group_'+this.props.id}>
-        {this.props.name+' '+this.props.id}
-        <button onClick={this.deleteGroup}>Delete</button>
+      <li key={'group_'+this.props.key}>
+        <GroupFacebookLink group={this.props.group}>
+          {this.props.group.name+' '+this.props.key}
+        </GroupFacebookLink>
+        {buttons}
+        <button onClick={this.deleteGroup}>Delete</button> 
       </li>
     );
   }
 });
 
-var GroupList = React.createClass({
+/**
+ * standard graph user object. 
+ * @see https://developers.intern.facebook.com/docs/graph-api/reference/v2.0/group/members
+ */
+var FBGroupMemberObject = React.createClass({
+  getInitialState: function() {
+    return { profilePictureURL: "" };
+  },
+
+  componentWillMount: function() {
+    FB.api(
+      this.props.user.id+'/picture',
+      'get',
+      function(res) {
+        this.setState({ profilePictureURL: res.data.url});
+      }.bind(this)
+    );
+  },
+
   render: function() {
-    if (!this.props.groups) {
-      return(<div/>);
+    return (
+      <div display="inline-block">
+        <img src={this.state.profilePictureURL} alt="profile picture"/>
+        {this.props.user.name}
+        {this.props.user.id}
+      </div>
+    );
+  }
+});
+
+var GroupInfo = React.createClass({
+  render: function() {
+    if (!Object.keys(this.props.info).length) {
+      return <div/>;
     }
-    var list_items = this.props.groups.map(
-      function(group_data) {
-        return <GroupListItem id={group_data.id} name={group_data.name} />;
+    var members = [];
+    this.props.info.members.map(
+      function(member) {
+        members.push(<FBGroupMemberObject key={member.id} user={member} />);
       }
     );
     return (
-      <ul>
-        {list_items}
-      </ul>
+      <div>
+        {members}
+      </div>
     );
   }
 });
@@ -97,27 +211,43 @@ var GroupList = React.createClass({
 var GroupArea = React.createClass({
   getInitialState: function() {
     return { 
-      playerGroups: [], 
-      appGroups: [] 
+      playerGroups: {}, 
+      appGroups: {},
+      groupInfo: {}
     };
   },
 
-  getPlayerGroups: function(res_cb) {
-    var self = this;
-    fbGraphGet(
-      'me/groups?access_token='+FB.getAccessToken()+'&parent='+fbconfig.app_id,
-      function(groups_res) {
-        self.setState({playerGroups: groups_res.data});
+  processFetchedGroups: function(groups) {
+    var res = {};
+    groups.forEach(
+      function(group) {
+        res[group.id] = group;
       }
+    );
+    return res;
+  },
+
+  getPlayerGroups: function() {
+    FB.api(
+      '/me/groups', 
+      'get', 
+      {},
+      function(groups_res) {
+        this.setState({playerGroups: this.processFetchedGroups(groups_res.data)});
+      }.bind(this)
     );
   },
 
   getAppGroups: function() {
     console.log('getting app groups');
-    var self = this;
-    sendServerReq('get', '/appGroups', {}, function(app_groups) {
-      self.setState({appGroups: app_groups});
-    });
+    sendServerReq(
+      'get', 
+      '/appGroups', 
+      {}, 
+      function(app_groups) {
+        this.setState({appGroups: this.processFetchedGroups(app_groups)});
+      }.bind(this)
+    );
   },
 
   getAllGroups: function() {
@@ -126,18 +256,63 @@ var GroupArea = React.createClass({
   },
 
   componentWillMount: function() {
-    this.getAllGroups()
+    this.getAllGroups();
   },
-  
-  render: function() {
+
+  /**
+   * called when a child component gets info about a particular group
+   */
+  onMemberInfo: function(info) {
+    this.setState({groupInfo: info });
+  },
+
+  renderPlayerGroups: function() {
+    if (!this.state.playerGroups) {
+      return [];
+    }
+    return Object.keys(this.state.playerGroups).map(
+      function(group_key) {
+        var group = this.state.playerGroups[group_key];
+        return <GroupListItem 
+          key={group.id} 
+          group={group} 
+          canMessage={true} 
+          onMemberInfo={this.onMemberInfo} 
+        />;
+      }.bind(this)
+    );
+  },
+
+  renderAppGroups: function() {
+    if (!this.state.appGroups) {
+      return [];
+    }
+    return Object.keys(this.state.appGroups).map(
+      function(group_key) {
+        var group = this.state.appGroups[group_key];
+        return <GroupListItem 
+          key={group.id} 
+          group={group} 
+          canJoin={!(group.id in this.state.playerGroups)} 
+          onMemberInfo={this.onMemberInfo} 
+        />;
+      }.bind(this)
+    );
+  },
+
+  render: function() {    
     return (
       <div>
         <CreateGroup/>
-        <MessageGroup/>
         <h4>Player Groups</h4>
-        <GroupList groups={this.state.playerGroups} />
+        <ul>
+          {this.renderPlayerGroups()}
+        </ul>
         <h4>App Groups</h4>
-        <GroupList groups={this.state.appGroups} />
+        <ul>
+          {this.renderAppGroups()}
+        </ul>
+        <GroupInfo info={this.state.groupInfo} />
       </div>
     );
   }
@@ -168,13 +343,12 @@ function fbGraphGet(path, res_cb, err_cb) {
     'https://graph.facebook.com'+path,
     true
   );
-  xhr.onreadystatechange=function()
-  {
+  xhr.onreadystatechange=function() {
     if (xhr.readyState==4)
     {
       if(xhr.status==200) {
         if (res_cb) {
-          res_cb(JSON.parse(xhr.responseText))
+          res_cb(JSON.parse(xhr.responseText));
         }
       } else {
         if (err_cb) {
@@ -184,7 +358,7 @@ function fbGraphGet(path, res_cb, err_cb) {
         }         
       }
     }
-  }
+  };
   xhr.send();
 }
 
@@ -215,7 +389,7 @@ function sendServerReq(method, path, json_payload, res) {
         console.error('sendServerReq('+method+') failed');
       }
     }
-  }
+  };
   xhr.open(method, path, true);
   xhr.setRequestHeader("Content-type", "application/json");
   xhr.send(JSON.stringify(json_payload));
