@@ -24,7 +24,7 @@ var SendMessageButton = React.createClass({
   },
   render: function() {
     return (
-      <button onClick={this.sendMessage}>Send Message</button>
+      <button onClick={this.sendMessage}>Post</button>
     );
   }
 });  
@@ -37,8 +37,15 @@ var CreateGroup = React.createClass({
   onSubmit: function(event) {
     // action="groupcreate" method="post"
     console.log('on submit');
-    submitForm(ge('groupcreate'), 'post', function(res) { console.log("res: "+JSON.stringify(res)); });
-    return true;
+    submitForm(
+      ge('groupcreate'), 
+      '/groupcreate',
+      function(res) { 
+        console.log("res: "+JSON.stringify(res)); 
+        this.props.onGroupsChanged()
+      }.bind(this)
+    );
+    return false;
   },
 
   onNameChange: function(e) {
@@ -53,7 +60,7 @@ var CreateGroup = React.createClass({
     return (
       <div>
         <h3>Make New Group</h3>
-        <form name="input" id="groupcreate" onSubmit={this.onSubmit} method="/groupcreate">
+        <form name="input" id="groupcreate" onSubmit={this.onSubmit} method="post">
           Name: <input type="text" name="name" onChange={this.onNameChange} value={this.state.name}></input>
           <input type="text" name="description" onChange={this.onDescriptionChange} value={this.state.description}></input>
           <input type="submit" value="Submit"></input>
@@ -107,10 +114,12 @@ var GetGroupInfoButton = React.createClass({
 });
 
 var GroupListItem = React.createClass({
+  // TODO: only render this if group is empty
   deleteGroup: function() {
     sendServerReq('delete', '/appGroups', {group_ids: [this.props.group.id]}, function() {
-      console.log('deleted group'+this.props.group.group.id);
-    }); 
+      console.log('deleted group'+this.props.group.id);
+      this.props.onGroupsChanged();
+    }.bind(this));
   },
 
   joinGroup: function() {
@@ -125,17 +134,12 @@ var GroupListItem = React.createClass({
       } else {
         console.log("error: " + response.error_message);
       }
-    });    
+      this.props.onGroupsChanged()
+    }.bind(this));
   },
 
   render: function() {
     var buttons = [];
-    buttons.push(
-      <GetGroupInfoButton 
-        group={this.props.group} 
-        onMemberInfo={this.props.onMemberInfo}
-      />
-    );
     if (this.props.canJoin) {
       buttons.push(
         <button 
@@ -143,6 +147,13 @@ var GroupListItem = React.createClass({
           onClick={this.joinGroup}>
           Join
         </button>);
+    } else {
+      buttons.push(
+        <GetGroupInfoButton 
+          group={this.props.group} 
+          onMemberInfo={this.props.onMemberInfo}
+        />
+      );
     }
     if (this.props.canMessage) {
       buttons.push(<SendMessageButton group={this.props.group} />);
@@ -180,7 +191,7 @@ var FBGroupMemberObject = React.createClass({
 
   render: function() {
     return (
-      <div display="inline-block">
+      <div style={{display:"inline-block"}}>
         <img src={this.state.profilePictureURL} alt="profile picture"/>
         {this.props.user.name}
         {this.props.user.id}
@@ -190,18 +201,59 @@ var FBGroupMemberObject = React.createClass({
 });
 
 var GroupInfo = React.createClass({
+
+  getInitialState: function() {
+    return { name: '' };
+  },
+  
+  getGroupName: function(group_id) {
+    if (!group_id) {
+      return;
+    }
+    FB.api(
+      group_id,
+      'get',
+      {},
+      function(info) {
+        if (info.error) {
+          console.log('GetGroupInfoButton info error:'+info.error.message);
+          return;
+        }
+        this.setState({name: info.name});
+      }.bind(this)
+    );
+  },
+
+  componentWillMount: function() {
+    console.log('componentWillMount '+this.props.info.id);
+    this.getGroupName(this.props.info.id);
+  },
+
+  componentWillReceiveProps: function(nextProps) {
+    console.log('componentWillReceiveProps '+this.props.info.id);
+    this.getGroupName(nextProps.info.id);
+  },
+
   render: function() {
-    if (!Object.keys(this.props.info).length) {
+    if (!this.props.info.id) {
       return <div/>;
     }
     var members = [];
-    this.props.info.members.map(
-      function(member) {
-        members.push(<FBGroupMemberObject key={member.id} user={member} />);
-      }
-    );
+    if (this.props.info.members) {
+      this.props.info.members.map(
+        function(member) {
+          members.push(<FBGroupMemberObject key={member.id} user={member} />);
+        }
+      );
+    }
+    var header = <h4>Group "{this.props.info.id}"</h4>;
+    if (this.state.name) {
+        header = <h4>Group {this.state.name}</h4>;
+    }
     return (
       <div>
+        {header}
+        <h5>{members.length} Members</h5>
         {members}
       </div>
     );
@@ -255,6 +307,10 @@ var GroupArea = React.createClass({
     this.getAppGroups();
   },
 
+  onGroupsChanged: function() {
+    this.getAllGroups();
+  },
+
   componentWillMount: function() {
     this.getAllGroups();
   },
@@ -278,6 +334,7 @@ var GroupArea = React.createClass({
           group={group} 
           canMessage={true} 
           onMemberInfo={this.onMemberInfo} 
+          onGroupsChanged={this.onGroupsChanged}
         />;
       }.bind(this)
     );
@@ -295,24 +352,33 @@ var GroupArea = React.createClass({
           group={group} 
           canJoin={!(group.id in this.state.playerGroups)} 
           onMemberInfo={this.onMemberInfo} 
+          onGroupsChanged={this.onGroupsChanged}
         />;
       }.bind(this)
     );
   },
 
-  render: function() {    
+  render: function() {
+    var columnStyle = {
+      display: "inline-block",
+      width: "50%" 
+    };
     return (
-      <div>
-        <CreateGroup/>
-        <h4>Player Groups</h4>
-        <ul>
-          {this.renderPlayerGroups()}
-        </ul>
-        <h4>App Groups</h4>
-        <ul>
-          {this.renderAppGroups()}
-        </ul>
-        <GroupInfo info={this.state.groupInfo} />
+      <div className="groupArea">
+        <CreateGroup onGroupsChanged={this.onGroupsChanged}/>
+        <div className="group2Col">
+          <h4>Player Groups</h4>
+          <ul>
+            {this.renderPlayerGroups()}
+          </ul>
+          <h4>App Groups</h4>
+          <ul>
+            {this.renderAppGroups()}
+          </ul>
+        </div>
+        <div className="group2Col">
+          <GroupInfo info={this.state.groupInfo} />
+        </div>
       </div>
     );
   }
@@ -395,9 +461,9 @@ function sendServerReq(method, path, json_payload, res) {
   xhr.send(JSON.stringify(json_payload));
 }
 
+// TODO: this is kinda crap, redo with something less crazy
 function submitForm(form_elt, action, res)
 {
-  form_elt.method || console.error("must set form.method");
   //    xhr.send(new FormData (form_elt)); <= screw this. sends as multipart/form-data
   //http://www.w3.org/TR/2010/WD-XMLHttpRequest2-20100907/#dom-xmlhttprequest-send
   var form_fields = {};
@@ -407,7 +473,7 @@ function submitForm(form_elt, action, res)
       form_fields[form_elt.elements[i].name] = form_elt.elements[i].value;
     }
   }
-  sendServerReq(form_elt.method, action, form_fields, res);
+  sendServerReq('post', action, form_fields, res);
   return false; // signal that the submit was handled
 }
 
