@@ -4,7 +4,8 @@ var fbconfig = require('cloud/fbconfig.js');
 
 fbconfig.app_id || console.error("must set app_id in fbconfig.js");
 fbconfig.app_secret || console.error("must set app_secret in fbconfig.js")
-
+fbconfig.graph_URL = fbconfig.graph_URL || 'https://graph.facebook.com';
+console.log('graph url:'+fbconfig.graph_URL);
 /**
 * request an app access token. this can be used for a variety of
 * app scoped calls to graph.facebook.com.
@@ -22,7 +23,7 @@ exports.appAccessTokenRequest = function(res_cb, err_cb) {
       grant_type:'client_credentials',
     };
   Parse.Cloud.httpRequest({
-    url: 'https://graph.facebook.com/oauth/access_token',
+    url: fbconfig.graph_URL+'/oauth/access_token',
     params: params,
     method: 'get',
     success: function(res_buf) {
@@ -56,7 +57,7 @@ exports.graphRequest = function (path, params, method, res_cb, err_cb) {
     path = '/' + path;
   }
   var options = {
-    url: 'https://graph.facebook.com'+path,
+    url: fbconfig.graph_URL+'/'+path,
     success: function(httpResponse) {
       //console.log('graphRequest('+path+') success: '+httpResponse.text);
       res_cb(JSON.parse(httpResponse.text));
@@ -107,53 +108,61 @@ exports.graphDelete = function (path, res_cb, err_cb) {
   exports.graphRequest(path, {}, 'delete', res_cb, err_cb);
 }
 
-exports.GroupPrivacyEnum = {
+
+_GroupPrivacyEnum = {
     OPEN: 'open',
     CLOSED: 'closed',
     // PRIVATE: 'private' -- not allowed
 };
 
-exports.groupCreate = function(name, description_opt, privacy_opt, admin_id_opt, res_cb, err_cb) {
+exports.GameGroups = {
+  GroupPrivacyEnum: _GroupPrivacyEnum,
+
+  /**
+   * Create a group.
+   * @result: JSON of the form
+   * {"id":"new_group_id"}
+   */
+  create: function(name, description_opt, privacy_opt, admin_id_opt, res_cb, err_cb) {
     var create_fn = function(app_access_token) {
-        if (!privacy_opt in exports.GroupPrivacyEnum) {
-            throw new Error('invalid group create privacy param '+privacy);
-        }
-        if (!name) {
-            throw new Error('name is required param');
-        }
-        if (!app_access_token) {
-            throw new Error('app access token required');
-        }
-        var path = '/'+fbconfig.app_id+'/groups';
-        var params = {
-            name: name,
-            access_token: app_access_token
-        };
-        if (description_opt) {
-            params.description = description_opt;
-        }
-        if (privacy_opt) {
-            params.privacy = privacy_opt;
-        }
-        if (admin_id_opt) {
-            params.admin = admin_id_opt;
-        }
-        exports.graphRequest(
-            path,
-            params,
-            'post',
-            res_cb,
-            err_cb
-        );  
+      if (!privacy_opt in _GroupPrivacyEnum) {
+        throw new Error('invalid group create privacy param '+privacy);
+      }
+      if (!name) {
+        throw new Error('name is required param');
+      }
+      if (!app_access_token) {
+        throw new Error('app access token required');
+      }
+      var path = '/'+fbconfig.app_id+'/groups';
+      var params = {
+        name: name,
+        access_token: app_access_token
+      };
+      if (description_opt) {
+        params.description = description_opt;
+      }
+      if (privacy_opt) {
+        params.privacy = privacy_opt;
+      }
+      if (admin_id_opt) {
+        params.admin = admin_id_opt;
+      }
+      exports.graphRequest(
+        path,
+        params,
+        'post',
+        res_cb,
+        err_cb
+      );  
     };
     if (fbconfig.app_access_token) {
-        create_fn(fbconfig.app_access_token);
+      create_fn(fbconfig.app_access_token);
     } else {
-        exports.appAccessTokenRequest(create_fn);
+      exports.appAccessTokenRequest(create_fn);
     }
-}
+  },
 
-exports.groups = {
   /**
    * Get groups owned by an app. This data may be paged, make sure to check the 'next'
    * param in the result and invoke that if you need more data.
@@ -210,7 +219,7 @@ exports.groups = {
         res_cb(res_groups);
       }
     }
-    exports.groups.getPaged(getter_cb, err_cb);    
+    exports.GameGroups.getPaged(getter_cb, err_cb);    
   },
 
   /**
@@ -225,4 +234,4 @@ exports.groups = {
       err_cb
     );
   }
-}; // exports.groups
+}; // exports.GameGroups

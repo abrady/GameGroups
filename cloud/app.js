@@ -55,7 +55,7 @@ app.get('/', index);
 
 app.post('/groupcreate', function(req, res) {
     console.log('groupcreate request body:'+JSON.stringify(req.body));
-    fb.groupCreate(
+    fb.GameGroups.create(
         req.body.name, 
         req.body.description, 
         req.body.privacy, 
@@ -70,7 +70,7 @@ app.post('/groupcreate', function(req, res) {
 });
 
 app.get('/appGroups', function(req, res) {
-  fb.groups.getAll(function(app_groups) {
+  fb.GameGroups.getAll(function(app_groups) {
     console.log('got groups'+JSON.stringify(app_groups));
     res.end(JSON.stringify(app_groups));
   });  
@@ -82,7 +82,7 @@ app.delete('/appGroups', function(req, res) {
   var deleted_res_count = 0;
   req.body.group_ids.forEach(
     function(group_id) {
-      fb.groups.delete(
+      fb.GameGroups.delete(
         group_id,
         function(/*bool*/ delete_outcome) { 
           console.log('deleted: '+delete_outcome);
@@ -98,5 +98,18 @@ app.delete('/appGroups', function(req, res) {
       )
     }); 
 });
+
+app.post('/postLink', function(req, res) {
+  console.log('posting link to group ' + req.body.groupID+' link is '+req.body.link);
+  fb.graphPost(
+    '/v2.0/'+req.body.groupID+'/feed', 
+    {
+      link: req.body.link
+    },
+    function(result) {
+      res.end(JSON.stringify(result));
+    }
+  );
+});   
 
 app.listen();

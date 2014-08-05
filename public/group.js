@@ -147,14 +147,15 @@ var GroupListItem = React.createClass({
           onClick={this.joinGroup}>
           Join
         </button>);
-    } else {
-      buttons.push(
-        <GetGroupInfoButton 
-          group={this.props.group} 
-          onMemberInfo={this.props.onMemberInfo}
-        />
-      );
     }
+
+    buttons.push(
+      <GetGroupInfoButton 
+        group={this.props.group} 
+        onMemberInfo={this.props.onMemberInfo}
+      />
+    );
+
     if (this.props.canMessage) {
       buttons.push(<SendMessageButton group={this.props.group} />);
     }
@@ -250,9 +251,13 @@ var GroupInfo = React.createClass({
     if (this.state.name) {
         header = <h4>Group {this.state.name}</h4>;
     }
+
+    var post_link = <PostLink groupID={this.props.info.id} />;
+
     return (
       <div>
         {header}
+        {post_link}
         <h5>{members.length} Members</h5>
         {members}
       </div>
@@ -383,6 +388,42 @@ var GroupArea = React.createClass({
     );
   }
 });
+
+var PostLink = React.createClass({
+  getInitialState: function() {
+    return { link: 'http://www.google.com' };
+  },
+  
+  onSubmit: function(event) {
+    console.log('PostLink: on submit');
+    submitForm(
+      ge('postLink'), 
+      '/postLink',
+      function(res) { 
+        console.log("PostLink res: "+JSON.stringify(res)); 
+        this.props.onLinkPosted()
+      }.bind(this)
+    );
+    return false;
+  },
+
+  onLinkPosted: function() {
+  },
+
+  render: function() {
+    return (
+      <div>
+        <h5>Post Link As Group</h5>
+        <form name="input" id="postLink" onSubmit={this.onSubmit} method="post">
+          Link: <input type="text" name="link" value={this.state.link}></input>
+          <input type="hidden" name="groupID" value={this.props.groupID}></input>
+          <input type="submit" value="Submit"></input>
+        </form>
+      </div>
+    );
+  }
+});
+
 
 // ============================================================
 // Data
